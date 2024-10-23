@@ -141,9 +141,15 @@ def generate_from_wav(
     return audio_hat, output_text
 
 
+model = None
+codec_decoder = None
+
+
 def generate(
     wav_path: str, progress_callback: Callable[[str], None] | None = None
 ) -> tuple[np.ndarray, int | float]:
+    global model, codec_decoder
+
     config = OmegaConf.structured(InferenceConfig())
     train_config, model_config, dataset_config, decode_config = (
         config.train_config,
@@ -158,12 +164,13 @@ def generate(
 
     update_progress(progress_callback, "Loading model")
 
-    model_factory = get_custom_model_factory(model_config)
-    model, _ = model_factory(train_config, model_config, CKPT_PATH)
-    codec_decoder = model.codec_decoder
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval()
+    if model is None or codec_decoder is None:
+        model_factory = get_custom_model_factory(model_config)
+        model, _ = model_factory(train_config, model_config, CKPT_PATH)
+        codec_decoder = model.codec_decoder
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
+        model.eval()
 
     update_progress(progress_callback, "Generating")
     output_wav, output_text = generate_from_wav(
